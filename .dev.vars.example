@@ -1,0 +1,3 @@
+# Optional local overrides. The app is public.
+# Set APP_ENABLED=false to show the closed page and reject every new API request.
+# APP_ENABLED=true
