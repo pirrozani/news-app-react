@@ -7,23 +7,37 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "typecheck": "tsc -b",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm test",
     "preview": "npm run build && vite preview",
     "deploy": "npm run build && wrangler deploy",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "test": "vitest run",
+    "test:browser": "playwright test",
+    "check:feeds": "vitest run --config vitest.feeds.config.ts"
   },
   "dependencies": {
+    "fast-xml-parser": "^5.11.2",
+    "markdown-it": "^15.0.3",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.64.0",
+    "@cloudflare/vitest-plugin": "^1.4.4",
+    "@playwright/test": "^1.64.1",
+    "@types/markdown-it": "^14.2.0",
     "@types/node": "^24.19.2",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
     "oxlint": "^1.81.0",
+    "prettier": "^3.9.10",
     "typescript": "~6.0.2",
     "vite": "^8.3.0",
+    "vitest": "^4.1.0",
     "wrangler": "^4.151.1"
   }
 }
