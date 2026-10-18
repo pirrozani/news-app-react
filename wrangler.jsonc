@@ -29,10 +29,8 @@
       "simple": { "limit": 10, "period": 60 },
     },
   ],
-  "vars": {
-    "PLANNER_MODEL": "@cf/ibm-granite/granite-4.0-h-micro",
-    "WRITER_MODEL": "@cf/ibm-granite/granite-4.0-h-micro",
-  },
+  // Application defaults live in worker/config.ts. Optional PLANNER_MODEL and
+  // WRITER_MODEL vars override them; keep_vars preserves dashboard overrides.
   "observability": {
     "enabled": true,
   },

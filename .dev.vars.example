@@ -1,3 +1,7 @@
 # Optional local overrides. The app is public.
 # Set APP_ENABLED=false to show the closed page and reject every new API request.
 # APP_ENABLED=true
+
+# Optional model overrides; omit to use worker/config.ts defaults.
+# PLANNER_MODEL=@cf/ibm-granite/granite-4.0-h-micro
+# WRITER_MODEL=@cf/ibm-granite/granite-4.0-h-micro

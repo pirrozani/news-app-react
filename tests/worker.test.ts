@@ -3,6 +3,7 @@ import { describe, expect, it, vi, afterEach } from 'vitest'
 import worker from '../worker/index'
 import type { AppEnv } from '../worker/env'
 import * as agents from '../worker/ai/agents'
+import { config } from '../worker/config'
 
 afterEach(() => vi.restoreAllMocks())
 
@@ -325,6 +326,7 @@ describe('session correctness with mocked model and RSS', () => {
   })
   it('retains answer snapshots, reuses evidence for rewrites, and clears stale context before a failed new search', async () => {
     const cookie = await sessionCookie()
+    const timeout = vi.spyOn(AbortSignal, 'timeout')
     const search = vi
       .spyOn(globalThis, 'fetch')
       .mockImplementation(async () => feed())
@@ -334,6 +336,8 @@ describe('session correctness with mocked model and RSS', () => {
     expect(await (await turn(cookie, 'Latest fusion news')).text()).toContain(
       'completed',
     )
+    expect(timeout).toHaveBeenCalledWith(config.session.turnTimeoutMs)
+    expect(timeout).toHaveBeenCalledWith(config.research.timeoutMs)
     expect(
       await (await turn(cookie, 'Summarize those reports')).text(),
     ).toContain('"reused":true')

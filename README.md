@@ -34,6 +34,25 @@ To close it, go to **Cloudflare → Workers & Pages → news-app → Settings �
 
 **Greek quality and citation compliance require live evaluation before production approval.** No live inference or deployment is required by the test suite.
 
+## Configuration
+
+Edit `worker/config.ts` for server-side defaults: planner/writer models, token
+budgets, temperatures, context limits, feed download timeout/size, excerpt length,
+approved publisher feeds, turn timeout, and session retention/history limits.
+Current behavior is unchanged by the centralized defaults.
+
+`PLANNER_MODEL` and `WRITER_MODEL` are optional independent environment overrides.
+Set them in `.dev.vars` locally (see `.dev.vars.example`), Wrangler's `vars`, or
+Cloudflare's **Variables and Secrets** for deployment. Missing or blank values use
+the defaults. With `keep_vars=true`, existing dashboard model overrides survive
+deployments and take precedence over `worker/config.ts`; remove them to use the
+code defaults. Changing code defaults or Wrangler settings requires a deployment.
+
+Keep bindings and connection rate limits in `wrangler.jsonc`. `APP_ENABLED` remains
+the dashboard shutdown switch. Feed URLs are trusted operator configuration, never
+user input; only exact configured URLs are fetched, without following redirects.
+Protocol markers, request validation, and citation safety rules remain in code.
+
 ## Evidence limitations
 
 Google News RSS is key-free, not guaranteed. Many summaries only repeat headlines; those results are omitted. Answers use meaningful feed excerpts, **not full articles**. Empty evidence returns an honest no-evidence response without invoking the writer. Citation checks establish link provenance, not independent fact-checking.

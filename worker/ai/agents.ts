@@ -1,12 +1,10 @@
 import type { Message, Source } from '../../shared/contracts'
 import { readSSE } from '../../shared/sse'
+import { config, resolveAIConfig } from '../config'
 import type { AppEnv } from '../env'
 import { DeskError } from '../errors'
 import { infer } from './provider'
 
-export const DEFAULT_MODEL = '@cf/ibm-granite/granite-4.0-h-micro'
-const PLANNER_TOKENS = 96
-const WRITER_TOKENS = 768
 const END_MARKER = 'END_OF_REPORT'
 
 export const asksForFreshness = (question: string) =>
@@ -31,7 +29,7 @@ export function fallbackQuery(question: string, history: Message[]): string {
     question,
     ...history
       .filter((message) => message.role === 'user')
-      .slice(-2)
+      .slice(-config.ai.planner.historyMessages)
       .reverse()
       .map((message) => message.content),
   ]) {
@@ -76,11 +74,12 @@ export async function plan(
   if (!sources.length || asksForFreshness(question)) return fallback()
   if (isRewrite(question))
     return { query: 'Previous source context', reused: true }
+  const { planner } = resolveAIConfig(env)
   try {
     const response = modelText(
       await infer(
         env,
-        env.PLANNER_MODEL || DEFAULT_MODEL,
+        planner.model,
         {
           messages: [
             {
@@ -93,24 +92,26 @@ export async function plan(
                 question,
                 recentQuestions: history
                   .filter((message) => message.role === 'user')
-                  .slice(-2)
-                  .map((message) => message.content.slice(0, 1000)),
+                  .slice(-planner.historyMessages)
+                  .map((message) =>
+                    message.content.slice(0, planner.historyChars),
+                  ),
                 sources: sources.map((source) => ({
                   title: source.title,
-                  excerpt: source.content.slice(0, 300),
+                  excerpt: source.content.slice(0, planner.sourceExcerptChars),
                 })),
               }),
             },
           ],
-          max_tokens: PLANNER_TOKENS,
-          temperature: 0.1,
+          max_tokens: planner.maxTokens,
+          temperature: planner.temperature,
         },
         signal,
       ),
     )
     if (
       response.finish === 'length' ||
-      (response.tokens ?? 0) >= PLANNER_TOKENS
+      (response.tokens ?? 0) >= planner.maxTokens
     )
       return fallback()
     const text = response.text.trim()
@@ -136,7 +137,7 @@ export function writerHistory(
   history: Message[],
   sources: Source[],
 ): { role: 'user' | 'assistant'; content: string }[] {
-  return history.slice(-6).map((message) => ({
+  return history.slice(-config.ai.writer.historyMessages).map((message) => ({
     role: message.role,
     content: (message.role === 'assistant'
       ? message.content.replace(/\[S\d+\]/g, (marker) => {
@@ -151,7 +152,7 @@ export function writerHistory(
       : message.content
     )
       .replace(/https?:\/\/\S+/g, '[URL omitted]')
-      .slice(0, 2000),
+      .slice(0, config.ai.writer.historyChars),
   }))
 }
 
@@ -163,9 +164,10 @@ export async function write(
   signal: AbortSignal,
   onDelta: (text: string) => void,
 ): Promise<string> {
+  const { writer } = resolveAIConfig(env)
   const result = await infer(
     env,
-    env.WRITER_MODEL || DEFAULT_MODEL,
+    writer.model,
     {
       messages: [
         {
@@ -180,8 +182,8 @@ export async function write(
         ...writerHistory(history, sources),
         { role: 'user', content: question },
       ],
-      max_tokens: WRITER_TOKENS,
-      temperature: 0.2,
+      max_tokens: writer.maxTokens,
+      temperature: writer.temperature,
       stream: true,
     },
     signal,
@@ -248,7 +250,7 @@ export async function write(
   // Older streams without finish metadata still need the marker and must not
   // report that they exhausted their output budget. [DONE] alone is insufficient.
   if (finish !== 'stop') {
-    if (tokens >= WRITER_TOKENS)
+    if (tokens >= writer.maxTokens)
       throw new DeskError(
         'The answer reached its token limit and was not saved. Ask for a shorter summary, then retry.',
       )

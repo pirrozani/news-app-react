@@ -1,24 +1,9 @@
 import { XMLParser } from 'fast-xml-parser'
 import type { Locale, Source } from '../../shared/contracts'
+import { config } from '../config'
 import { DeskError } from '../errors'
 
 const FEED_HOST = 'news.google.com'
-const MAX_BYTES = 1_000_000
-// Only these exact server-selected feed URLs can be fetched. Publisher article links are display-only.
-const PUBLISHER_FEEDS = {
-  'en-US': [
-    { url: 'https://feeds.bbci.co.uk/news/rss.xml', outlet: 'BBC News' },
-    {
-      url: 'https://feeds.bbci.co.uk/news/science_and_environment/rss.xml',
-      outlet: 'BBC News',
-    },
-    { url: 'https://www.theguardian.com/world/rss', outlet: 'The Guardian' },
-  ],
-  'el-GR': [
-    { url: 'https://www.ertnews.gr/feed/', outlet: 'ERT News' },
-    { url: 'https://www.in.gr/feed/', outlet: 'in.gr' },
-  ],
-}
 
 export function resolveLocale(
   question: string,
@@ -129,7 +114,7 @@ export function parseFeed(
       plainText(item.source ?? item['News:Source'], 100) ||
       publisher ||
       'Unknown outlet'
-    const content = plainText(item.description)
+    const content = plainText(item.description, config.research.excerptChars)
     // Aggregator descriptions often repeat only the headline and outlet. Do not call that article evidence.
     const normalize = (value: string) =>
       value
@@ -180,7 +165,7 @@ export function parseFeed(
 }
 
 async function downloadFeed(url: URL, signal: AbortSignal): Promise<string> {
-  const approved = Object.values(PUBLISHER_FEEDS)
+  const approved = Object.values(config.research.publisherFeeds)
     .flat()
     .some((feed) => feed.url === url.href)
   const searchEndpoint =
@@ -189,7 +174,10 @@ async function downloadFeed(url: URL, signal: AbortSignal): Promise<string> {
       url.pathname === '/news/search' &&
       url.searchParams.get('format') === 'rss')
   if (!approved && !searchEndpoint) throw new Error('Unapproved feed')
-  const timeout = AbortSignal.any([signal, AbortSignal.timeout(10_000)])
+  const timeout = AbortSignal.any([
+    signal,
+    AbortSignal.timeout(config.research.timeoutMs),
+  ])
   // Workers does not implement redirect: 'error'. Manual mode plus the status
   // check below rejects redirects without following an unapproved destination.
   const response = await fetch(url, {
@@ -218,7 +206,7 @@ async function downloadFeed(url: URL, signal: AbortSignal): Promise<string> {
       const { value, done } = await reader.read()
       if (done) break
       bytes += value.byteLength
-      if (bytes > MAX_BYTES) throw new Error('Feed too large')
+      if (bytes > config.research.maxBytes) throw new Error('Feed too large')
       chunks.push(value)
     }
   } finally {
@@ -300,7 +288,7 @@ export async function research(
   }
   if (!sources.length) {
     const results = await Promise.allSettled(
-      PUBLISHER_FEEDS[locale].map(async (feed) =>
+      config.research.publisherFeeds[locale].map(async (feed) =>
         relevantSources(
           parseFeed(
             await downloadFeed(new URL(feed.url), signal),

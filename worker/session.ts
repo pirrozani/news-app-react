@@ -10,11 +10,11 @@ import { NO_EVIDENCE } from '../shared/contracts'
 import { readTurn } from './http/request'
 import { plan, write } from './ai/agents'
 import { validateDraft } from './citations'
+import { config } from './config'
 import type { AppEnv } from './env'
 import { DeskError, safeError } from './errors'
 import { research, resolveLocale } from './research'
 
-const IDLE_TTL = 2 * 60 * 60 * 1000
 interface State {
   messages: Message[]
   sources: Source[]
@@ -39,7 +39,7 @@ export class NewsSession extends DurableObject<AppEnv> {
     super(ctx, env)
     ctx.blockConcurrencyWhile(async () => {
       this.state = (await ctx.storage.get<State>('session')) ?? empty()
-      if (Date.now() - this.state.touched >= IDLE_TTL) {
+      if (Date.now() - this.state.touched >= config.session.idleTtlMs) {
         this.state = empty()
         await ctx.storage.deleteAll()
       }
@@ -49,14 +49,20 @@ export class NewsSession extends DurableObject<AppEnv> {
   private async save(): Promise<void> {
     this.state.touched = Date.now()
     await this.ctx.storage.put('session', this.state)
-    await this.ctx.storage.setAlarm(this.state.touched + IDLE_TTL)
+    await this.ctx.storage.setAlarm(
+      this.state.touched + config.session.idleTtlMs,
+    )
   }
 
   async alarm(): Promise<void> {
-    if (!this.active && Date.now() >= this.state.touched + IDLE_TTL) {
+    if (
+      !this.active &&
+      Date.now() >= this.state.touched + config.session.idleTtlMs
+    ) {
       this.state = empty()
       await this.ctx.storage.deleteAll()
-    } else await this.ctx.storage.setAlarm(Date.now() + IDLE_TTL)
+    } else
+      await this.ctx.storage.setAlarm(Date.now() + config.session.idleTtlMs)
   }
 
   private view(): SessionView {
@@ -70,7 +76,10 @@ export class NewsSession extends DurableObject<AppEnv> {
   async fetch(request: Request): Promise<Response> {
     try {
       const path = new URL(request.url).pathname
-      if (!this.active && Date.now() - this.state.touched >= IDLE_TTL) {
+      if (
+        !this.active &&
+        Date.now() - this.state.touched >= config.session.idleTtlMs
+      ) {
         this.state = empty()
         await this.ctx.storage.deleteAlarm()
         await this.ctx.storage.deleteAll()
@@ -186,7 +195,7 @@ export class NewsSession extends DurableObject<AppEnv> {
   ): Promise<void> {
     const signal = AbortSignal.any([
       controller.signal,
-      AbortSignal.timeout(75_000),
+      AbortSignal.timeout(config.session.turnTimeoutMs),
     ])
     const history = this.state.messages.filter(
       (message) => message.id !== input.id,
@@ -199,7 +208,7 @@ export class NewsSession extends DurableObject<AppEnv> {
         createdAt: new Date().toISOString(),
       })
     }
-    this.state.messages = this.state.messages.slice(-30)
+    this.state.messages = this.state.messages.slice(-config.session.maxMessages)
     this.state.failedTurn = {
       id: input.id,
       question: input.question,
@@ -285,7 +294,9 @@ export class NewsSession extends DurableObject<AppEnv> {
         createdAt: new Date().toISOString(),
       }
       this.state.messages.push(message)
-      this.state.messages = this.state.messages.slice(-30)
+      this.state.messages = this.state.messages.slice(
+        -config.session.maxMessages,
+      )
       this.state.failedTurn = null
       await this.save()
       send({ type: 'completed', message })

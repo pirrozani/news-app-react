@@ -39,7 +39,9 @@ If you instead disable a URL or remove a domain in the dashboard, ensure every o
 - `SESSIONS`: SQLite-backed session Durable Objects.
 - `TURN_RATE_LIMITER`: 10 public questions per connection IP per 60 seconds at a Cloudflare location. Namespace `18272601` must be unique to this app in your account; change it if already used elsewhere.
 - `APP_ENABLED`: dashboard-managed on/off switch.
-- `PLANNER_MODEL` / `WRITER_MODEL`: initial candidate `@cf/ibm-granite/granite-4.0-h-micro`.
+- `PLANNER_MODEL` / `WRITER_MODEL`: optional independent overrides for the model defaults in `worker/config.ts` (initial candidate `@cf/ibm-granite/granite-4.0-h-micro`). Set locally in `.dev.vars`, in Wrangler `vars`, or in the dashboard. Missing/blank values use the defaults. Model overrides already saved in the dashboard survive deployments with `keep_vars=true`; remove them if you want changes to the code defaults to apply.
+
+`worker/config.ts` also owns token budgets, temperatures, context limits, feed download bounds and approved publisher URLs, turn timeout, and session retention/history limits. These are code defaults and require redeployment to change. Connection rate limits and platform bindings stay in `wrangler.jsonc`; protocol and validation rules stay in code.
 
 Public turn requests require Cloudflare's connection metadata and the rate-limit binding; if protection is unavailable they fail closed. Localhost development uses session-level limits instead. Mutating API requests require same-origin requests and appropriate JSON bodies. Cancel and Clear are not blocked by the public question rate limiter.
 

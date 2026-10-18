@@ -11,6 +11,7 @@ import {
   writerHistory,
 } from '../worker/ai/agents'
 import { validateDraft } from '../worker/citations'
+import { config } from '../worker/config'
 import type { AppEnv } from '../worker/env'
 import {
   parseFeed,
@@ -151,6 +152,27 @@ describe('routing and bounded inputs', () => {
     )
     expect(writerHistory([message], [])[0].content).toContain('earlier source')
   })
+  it('applies configured writer history count and character limits', () => {
+    const history: Message[] = Array.from(
+      { length: config.ai.writer.historyMessages + 2 },
+      (_, index) => ({
+        id: String(index),
+        role: 'user',
+        content: String(index) + 'x'.repeat(config.ai.writer.historyChars),
+        createdAt: '',
+      }),
+    )
+    const messages = writerHistory(history, [])
+    expect(messages).toHaveLength(config.ai.writer.historyMessages)
+    expect(messages[0].content).toBe(
+      history[2].content.slice(0, config.ai.writer.historyChars),
+    )
+    expect(
+      messages.every(
+        (message) => message.content.length === config.ai.writer.historyChars,
+      ),
+    ).toBe(true)
+  })
 })
 
 describe('citations', () => {
@@ -182,6 +204,12 @@ describe('RSS evidence', () => {
     expect(results[0].content).toBe(source.content)
     expect(results[0].evidence).toBe('feed-excerpt')
     expect(results[0].publishedAt).toBe('2026-10-18T10:00:00.000Z')
+  })
+  it('uses the configured excerpt character limit', () => {
+    const description = source.content.repeat(config.research.excerptChars)
+    expect(parseFeed(xml(description), 3)[0].content).toBe(
+      description.slice(0, config.research.excerptChars),
+    )
   })
   it('rejects title-only evidence and XML entities', () => {
     expect(parseFeed(xml(`${source.title} Example News`), 3)).toHaveLength(0)
@@ -231,6 +259,9 @@ describe('RSS evidence', () => {
         fetchMock.mock.calls.every((call) => call[1]?.redirect === 'manual'),
       ).toBe(true)
       expect(fetchMock).toHaveBeenCalledTimes(5)
+      expect(
+        fetchMock.mock.calls.slice(2).map((call) => String(call[0])),
+      ).toEqual(config.research.publisherFeeds['en-US'].map((feed) => feed.url))
     } finally {
       fetchMock.mockRestore()
     }
