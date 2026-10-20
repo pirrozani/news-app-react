@@ -2,6 +2,10 @@
 
 Newsdesk is a news chat app. Ask a question, and it finds news excerpts, then uses AI to write a short report with sources you can inspect. No account is needed, and each browser session has its own conversation.
 
+## Try it
+
+The app is live at **[https://news-app.pirrozani.workers.dev](https://news-app.pirrozani.workers.dev/)**. No account is needed. Open the link and ask a news question.
+
 ## How the app works
 
 1. **You ask a question.** For example: "What is the latest news about renewable energy in Europe?" You can choose English or Greek news feeds and request two to six sources. The default is three.
